@@ -1,0 +1,677 @@
+Turbo Assembler	 Version 3.1	    04/19/25 21:56:59	    Page 1
+LAB_2.asm
+
+
+
+      1	0000			     .model small
+      2	0000			     .stack 100h
+      3
+      4	0000			     .data
+      5	      =000F			 CountsOfSymbol	EQU 15
+      6	0000  10*(00)			 buffer	db CountsOfSymbol+1 dup(0)
+      7	0010  0000			 dig1 dw 0
+      8	0012  0000			 dig2 dw 0
+      9	0014  00			 sign db 0
+     10	0015  00			 operation db 0
+     11	0016  0000			 result	dw 0
+     12	0018  49 6E 70 75 74 20	79+	 input_string_msg db "Input your string:",0ah,0dh,'$'
+     13	      6F 75 72 20 73 74	72+
+     14	      69 6E 67 3A 0A 0D	24
+     15	002D  45 6E 74 65 72 20	74+	 prompt1 db 'Enter the first number in HEX: $'
+     16	      68 65 20 66 69 72	73+
+     17	      74 20 6E 75 6D 62	65+
+     18	      72 20 69 6E 20 48	45+
+     19	      58 3A 20 24
+     20	004D  45 6E 74 65 72 20	74+	 prompt2 db 'Enter the second number in	HEX: $'
+     21	      68 65 20 73 65 63	6F+
+     22	      6E 64 20 6E 75 6D	62+
+     23	      65 72 20 69 6E 20	48+
+     24	      45 58 3A 20 24
+     25	006E  41 4E 44 20 72 65	73+	 result_and db 'AND result: $'
+     26	      75 6C 74 3A 20 24
+     27	007B  4F 52 20 72 65 73	75+	 result_or db 'OR result: $'
+     28	      6C 74 3A 20 24
+     29	0087  58 4F 52 20 72 65	73+	 result_xor db 'XOR result: $'
+     30	      75 6C 74 3A 20 24
+     31	0094  4E 4F 54 20 72 65	73+	 result_not_first db 'NOT result (first	number): $'
+     32	      75 6C 74 20 28 66	69+
+     33	      72 73 74 20 6E 75	6D+
+     34	      62 65 72 29 3A 20	24
+     35	00B0  4E 4F 54 20 72 65	73+	 result_not_second db 'NOT result (second number): $'
+     36	      75 6C 74 20 28 73	65+
+     37	      63 6F 6E 64 20 6E	75+
+     38	      6D 62 65 72 29 3A	20+
+     39	      24
+     40	00CD  32 6E 64 20 4E 4F	54+	 result_not_first_again	db '2nd	NOT result (first number): $'
+     41	      20 72 65 73 75 6C	74+
+     42	      20 28 66 69 72 73	74+
+     43	      20 6E 75 6D 62 65	72+
+     44	      29 3A 20 24
+     45	00ED  32 6E 64 20 4E 4F	54+	 result_not_second_again db '2nd NOT result (second number): $'
+     46	      20 72 65 73 75 6C	74+
+     47	      20 28 73 65 63 6F	6E+
+     48	      64 20 6E 75 6D 62	65+
+     49	      72 29 3A 20 24
+     50	010E  45 72 72 6F 72 3A	20+	 error_msg db 'Error: overflow or invalid input.$'
+     51	      6F 76 65 72 66 6C	6F+
+     52	      77 20 6F 72 20 69	6E+
+     53	      76 61 6C 69 64 20	69+
+     54	      6E 70 75 74 2E 24
+     55	0130  0A 0D 49 6E 76 61	6C+	 error_message db 0Ah,0Dh,"Invalid input! Only in [A,F], [a,f],	[0,9], +, - and	single	    +
+     56	      69 64 20 69 6E 70	75+  spaces allowed.",0Ah,0Dh,'$'
+     57	      74 21 20 4F 6E 6C	79+
+Turbo Assembler	 Version 3.1	    04/19/25 21:56:59	    Page 2
+LAB_2.asm
+
+
+
+     58	      20 69 6E 20 5B 41	2C+
+     59	      46 5D 2C 20 5B 61	2C+
+     60	      66 5D 2C 20 5B 30	2C+
+     61	      39 5D 2C 20 2B 2C	20+
+     62	      2D 20 61 6E 64 20	73+
+     63	      69 6E 67 6C 65 20	73+
+     64	      70 61 63 65 73 20	61+
+     65	      6C 6C 6F 77 65 64	2E+
+     66	      0A 0D 24
+     67
+     68	0180			     .code
+     69
+     70				     print_string macro	string
+     71					 mov ah,09h
+     72					 mov dx,offset string
+     73					 int 21h
+     74				     endm
+     75
+     76	0000			     print_new_line proc
+     77
+     78	0000  50			 push ax
+     79	0001  52			 push dx
+     80					 ; Вывод перевода строки (CR+LF)
+     81	0002  B4 02			 mov ah, 02h	; Функция DOS для вывода символа
+     82	0004  B2 0D			 mov dl, 0Dh	; Символ возврата	каретки (CR)
+     83	0006  CD 21			 int 21h
+     84	0008  B2 0A			 mov dl, 0Ah	; Символ перевода	строки (LF)
+     85	000A  CD 21			 int 21h
+     86
+     87	000C  5A			 pop dx
+     88	000D  58			 pop ax
+     89	000E  C3			 ret
+     90	000F			     print_new_line endp
+     91
+     92	000F			     print_str proc
+     93	000F  50			 push ax
+     94	0010  52			 push dx
+     95
+     96	0011  B4 09			 mov ah, 09h	; Функция DOS для вывода строки
+     97	0013  CD 21			 int 21h	; Вызов прерывания DOS
+     98
+     99	0015  E8 FFE8			 call print_new_line
+    100
+    101	0018  5A			 pop dx
+    102	0019  58			 pop ax
+    103	001A  C3			 ret
+    104	001B			     print_str endp
+    105
+    106	001B			     start:
+    107	001B  B8 0000s			 mov ax,@data
+    108	001E  8E D8			 mov ds,ax
+    109	0020  8E C0			 mov es,ax
+    110	0022  BA 0018r			 mov dx, offset	input_string_msg
+    111	0025  E8 FFE7			 call print_str
+    112	0028  E8 001D			 call validate_input
+    113	002B  E8 0037			 call get_numbers
+    114	002E  E8 0110			 call logic_operation
+Turbo Assembler	 Version 3.1	    04/19/25 21:56:59	    Page 3
+LAB_2.asm
+
+
+
+    115
+    116
+    117	0031  B8 4C00			 mov ax,4C00h
+    118	0034  CD 21			 int 21h
+    119
+    120	0036			     print_result proc
+    121	0036  50			 push ax
+    122	0037  A1 0016r			 mov ax, result
+    123	003A  E8 017A			 call print_signed_hex
+    124	003D  E8 FFC0			 call print_new_line
+    125	0040  E8 01CC			 call print_binary
+    126	0043  E8 FFBA			 call print_new_line
+    127	0046  58			 pop ax
+    128	0047  C3			 ret
+    129	0048			     print_result endp
+    130				     ; ======= Input Validation	=======
+    131	0048			     validate_input proc
+    132	0048  50			 push ax
+    133	0049  51			 push cx
+    134	004A  52			 push dx
+    135	004B  57			 push di
+    136	004C  BF 0000r			 LEA  DI,  buffer
+    137	004F  B9 000F			 mov cx, CountsOfSymbol
+    138	0052			     validate_loop:
+    139	0052  B4 01			 mov ah, 01h ;1	symbol
+    140	0054  CD 21			 int 21h
+    141	0056  3C 0D			 cmp al, 13
+    142	0058  74 05			 je if_symbol_is_enter
+    143	005A  AA			 stosb
+    144	005B  E2 F5			 loop validate_loop
+    145	005D  B0 0D			 mov al, 13
+    146	005F			     if_symbol_is_enter:
+    147	005F  AA			 stosb
+    148	0060  5F			 pop di
+    149	0061  5A			 pop dx
+    150	0062  59			 pop cx
+    151	0063  58			 pop ax
+    152	0064  C3			 ret
+    153	0065			     validate_input endp
+    154
+    155				     ; ======= Get Numbers =======
+    156				     ; al for input, bx	for number
+    157				     ; cx for loop, dl is operand's count
+    158				     ; dh is a flag that we have at least 1 digit in number
+    159	0065			     get_numbers proc
+    160	0065  50			 push ax
+    161	0066  53			 push bx
+    162	0067  51			 push cx
+    163	0068  52			 push dx
+    164	0069  56			 push si
+    165
+    166				     ;&	| ^
+    167	006A  BE 0000r			 lea  si,  buffer
+    168	006D  BB 0000			 mov bx, 0
+    169	0070  BA 0000			 mov dx, 0
+    170	0073  E8 0041			 call skip_spaces
+    171	0076  E8 00B5			 call what_is_sign
+Turbo Assembler	 Version 3.1	    04/19/25 21:56:59	    Page 4
+LAB_2.asm
+
+
+
+    172	0079  E8 0041			 call read_1_digit
+    173	007C  E8 008A			 call check_after_read_digit
+    174	007F  89 1E 0010r		 mov dig1, bx
+    175
+    176				     ;after_convert_1_digit
+    177	0083  E8 0031			 call skip_spaces
+    178	0086  E8 00A5			 call what_is_sign
+    179	0089  E8 0031			 call read_1_digit
+    180	008C  E8 007A			 call check_after_read_digit
+    181	008F  3C 0D			 cmp al, 13
+    182	0091  74 0B			 je all_good
+    183	0093  3C 20			 cmp al, ' '
+    184	0095  75 11			 jne bad_people
+    185	0097  E8 001D			 call skip_spaces
+    186	009A  3C 0D			 cmp al, 13
+    187	009C  74 00			 je all_good
+    188	009E			     all_good:
+    189	009E  89 1E 0012r		 mov dig2, bx
+    190	00A2  5E			 pop si
+    191	00A3  5A			 pop dx
+    192	00A4  59			 pop cx
+    193	00A5  5B			 pop bx
+    194	00A6  58			 pop ax
+    195	00A7  C3			 ret
+    196	00A8			     bad_people:
+    197	00A8  E8 0000			 call bad_input
+    198	00AB			     get_numbers endp
+    199
+    200	00AB			     bad_input proc
+    201					 print_string error_message
+1   202	00AB  B4 09			 mov ah,09h
+1   203	00AD  BA 0130r			 mov dx,offset error_message
+1   204	00B0  CD 21			 int 21h
+    205	00B2  B8 4C00			 mov ax, 4c00h
+    206	00B5  CD 21			 int 21h
+    207	00B7			     bad_input endp
+    208
+    209
+    210	00B7			     skip_spaces proc
+    211	00B7			     spaces:
+    212	00B7  AC			 lodsb
+    213	00B8  3C 20			 cmp al, ' '
+    214	00BA  74 FB			 je spaces
+    215	00BC  C3			 ret
+    216	00BD			     skip_spaces endp
+    217
+    218	00BD			     read_1_digit proc
+    219	00BD  B9 0004			 mov cx, 4
+    220	00C0  BB 0000			 mov bx, 0
+    221	00C3			     hex:
+    222	00C3  3C 30			 cmp al, '0'
+    223	00C5  7C 41			 jl end_hex
+    224	00C7  3C 39			 cmp al, '9'
+    225	00C9  7F 0F			 jg big_letter
+    226	00CB  D1 E3 D1 E3 D1 E3	D1+	 shl bx, 4
+    227	      E3
+    228	00D3  2C 30			 sub al, '0'
+Turbo Assembler	 Version 3.1	    04/19/25 21:56:59	    Page 5
+LAB_2.asm
+
+
+
+    229	00D5  0A D8			 or bl,	al
+    230	00D7  EB 2C 90			 jmp next
+    231
+    232	00DA			     big_letter:
+    233	00DA  3C 41			 cmp al, 'A'
+    234	00DC  7C 2A			 jl end_hex
+    235	00DE  3C 46			 cmp al, 'F'
+    236	00E0  7F 0F			 jg small_letter
+    237	00E2  D1 E3 D1 E3 D1 E3	D1+	 shl bx, 4
+    238	      E3
+    239	00EA  2C 37			 sub al, 'A' - 10
+    240	00EC  0A D8			 or bl,	al
+    241	00EE  EB 15 90			 jmp next
+    242
+    243	00F1			     small_letter:
+    244	00F1  3C 61			 cmp al, 'a'
+    245	00F3  7C 13			 jl end_hex
+    246	00F5  3C 66			 cmp al, 'f'
+    247	00F7  7F 0F			 jg end_hex
+    248	00F9  D1 E3 D1 E3 D1 E3	D1+	 shl bx, 4
+    249	      E3
+    250	0101  2C 57			 sub al, 'a' - 10
+    251	0103  0A D8			 or bl,	al
+    252
+    253	0105			     next:
+    254	0105  AC			 lodsb
+    255	0106  E2 BB			 loop hex
+    256	0108			     end_hex:
+    257	0108  C3			 ret
+    258	0109			     read_1_digit endp
+    259
+    260
+    261	0109			     check_after_read_digit proc
+    262	0109  80 3E 0014r 2D		 cmp sign, '-'
+    263	010E  75 0B			 jne positive_check
+    264
+    265					 ; Отрицательное число:
+    266	0110  81 FB 8000		 cmp bx, 8000h	     ; Проверяем, не	больше ли 8000h
+    267	0114  77 0C			 ja overflow_error   ; Если	больше — ошибка переполнения
+    268	0116  F7 DB			 neg bx		     ; Преобразуем в доп. код
+    269	0118  EB 07 90			 jmp end_check
+    270
+    271	011B			     positive_check:
+    272	011B  81 FB 7FFF		 cmp bx, 7FFFh
+    273	011F  77 01			 ja overflow_error
+    274
+    275	0121			     end_check:
+    276	0121  C3			 ret
+    277
+    278	0122			     overflow_error:
+    279					 print_string error_msg
+1   280	0122  B4 09			 mov ah,09h
+1   281	0124  BA 010Er			 mov dx,offset error_msg
+1   282	0127  CD 21			 int 21h
+    283	0129  B8 4C00			 mov ax, 4C00h
+    284	012C  CD 21			 int 21h
+    285	012E			     check_after_read_digit endp
+Turbo Assembler	 Version 3.1	    04/19/25 21:56:59	    Page 6
+LAB_2.asm
+
+
+
+    286
+    287	012E			     what_is_sign proc
+    288					 ; SI указывает на текущий символ в строке
+    289	012E  3C 2B			 cmp al, '+'
+    290	0130  74 0A			 je is_sign
+    291	0132  3C 2D			 cmp al, '-'
+    292	0134  74 06			 je is_sign
+    293
+    294					 ; Если знака нет:
+    295	0136  C6 06 0014r 2B		 mov sign, '+'		; По умолчанию '+'
+    296	013B  C3			 ret			; Выход 1 — знака не было, откатились
+    297
+    298	013C			     is_sign:
+    299	013C  A2 0014r			 mov sign, al		; Сохраняем знак (+/-)
+    300	013F  AC			 lodsb
+    301	0140  C3			 ret			; Выход 2 — знак был, не откатываемся
+    302	0141			     what_is_sign endp
+    303
+    304	0141			     logic_operation proc
+    305	0141  E8 0040			 call and_proc
+    306	0144  BA 006Er			 mov dx, offset	result_and
+    307	0147  E8 FEC5			 call print_str
+    308	014A  E8 FEE9			 call print_result
+    309
+    310	014D  E8 0045			 call or_proc
+    311	0150  BA 007Br			 mov dx, offset	result_or
+    312	0153  E8 FEB9			 call print_str
+    313	0156  E8 FEDD			 call print_result
+    314
+    315	0159  E8 004A			 call xor_proc
+    316	015C  BA 0087r			 mov dx, offset	result_xor
+    317	015F  E8 FEAD			 call print_str
+    318	0162  E8 FED1			 call print_result
+    319
+    320	0165  A1 0010r			 mov ax, dig1
+    321	0168  BA 0094r			 mov dx, offset	result_not_first
+    322	016B  E8 000A			 call not_proc
+    323					 ;mov dx, offset result_not_first_again
+    324					 ;call not_proc
+    325
+    326	016E  A1 0012r			 mov ax, dig2
+    327	0171  BA 00B0r			 mov dx, offset	result_not_second
+    328	0174  E8 0001			 call not_proc
+    329					 ;mov dx, offset result_not_second_again
+    330					 ;call not_proc
+    331
+    332	0177  C3			 ret
+    333	0178			     logic_operation endp
+    334
+    335	0178			     not_proc proc
+    336	0178  F7 D0			 not ax
+    337	017A  A3 0016r			 mov result, ax
+    338	017D  E8 FE8F			 call print_str
+    339	0180  E8 FEB3			 call print_result
+    340	0183  C3			 ret
+    341	0184			     not_proc endp
+    342
+Turbo Assembler	 Version 3.1	    04/19/25 21:56:59	    Page 7
+LAB_2.asm
+
+
+
+    343	0184			     and_proc proc
+    344	0184  50			 push ax
+    345	0185  53			 push bx
+    346
+    347	0186  A1 0010r			 mov ax, dig1
+    348	0189  8B 1E 0012r		 mov bx, dig2
+    349	018D  23 C3			 and ax, bx
+    350	018F  A3 0016r			 mov result, ax
+    351
+    352	0192  5B			 pop bx
+    353	0193  58			 pop ax
+    354	0194  C3			 ret
+    355	0195			     and_proc endp
+    356
+    357
+    358	0195			     or_proc proc
+    359	0195  50			 push ax
+    360	0196  53			 push bx
+    361
+    362	0197  A1 0010r			 mov ax, dig1
+    363	019A  8B 1E 0012r		 mov bx, dig2
+    364	019E  0B C3			 or ax,	bx
+    365	01A0  A3 0016r			 mov result, ax
+    366
+    367	01A3  5B			 pop bx
+    368	01A4  58			 pop ax
+    369	01A5  C3			 ret
+    370	01A6			     or_proc endp
+    371
+    372
+    373	01A6			     xor_proc proc
+    374	01A6  50			 push ax
+    375	01A7  53			 push bx
+    376
+    377	01A8  A1 0010r			 mov ax, dig1
+    378	01AB  8B 1E 0012r		 mov bx, dig2
+    379	01AF  33 C3			 xor ax, bx
+    380	01B1  A3 0016r			 mov result, ax
+    381
+    382	01B4  5B			 pop bx
+    383	01B5  58			 pop ax
+    384	01B6  C3			 ret
+    385	01B7			     xor_proc endp
+    386
+    387
+    388				     ; Вывод 16-битного числа в HEX с обязательным знаком (+/-)
+    389				     ; Вход: AX - число для	вывода
+    390	01B7			     print_signed_hex proc
+    391	01B7  50			 push ax
+    392	01B8  53			 push bx
+    393	01B9  51			 push cx
+    394	01BA  52			 push dx
+    395
+    396	01BB  85 C0			 test ax, ax	  ; Проверяем знак	числа
+    397	01BD  79 0D			 jns positive_num ; Если положительное	(SF=0)
+    398
+    399					 ; Отрицательное число:
+Turbo Assembler	 Version 3.1	    04/19/25 21:56:59	    Page 8
+LAB_2.asm
+
+
+
+    400	01BF  B2 2D			 mov dl, '-'	  ; Выводим '-'
+    401	01C1  50			 push ax
+    402	01C2  B4 02			 mov ah, 02h
+    403	01C4  CD 21			 int 21h
+    404	01C6  58			 pop ax
+    405
+    406	01C7  F7 D8			 neg ax
+    407					 ;inc ax
+    408					 ;toDo хз надо ли inc или нет
+    409	01C9  EB 09 90			 jmp print_value  ; Пропускаем вывод '+'
+    410
+    411	01CC			     positive_num:
+    412	01CC  B2 2B			 mov dl, '+'	  ; Выводим '+' для положительных чисел
+    413	01CE  50			 push ax
+    414	01CF  B4 02			 mov ah, 02h
+    415	01D1  CD 21			 int 21h
+    416	01D3  58			 pop ax
+    417
+    418	01D4			     print_value:
+    419	01D4  E8 0005			 call print_hex	  ; Выводим само число в HEX
+    420
+    421	01D7  5A			 pop dx
+    422	01D8  59			 pop cx
+    423	01D9  5B			 pop bx
+    424	01DA  58			 pop ax
+    425	01DB  C3			 ret
+    426	01DC			     print_signed_hex endp
+    427				     ; Вспомогательная процедура: вывод беззнакового HEX   +
+    428				     (как раньше)
+    429	01DC			     print_hex proc
+    430	01DC  50			 push ax
+    431	01DD  53			 push bx
+    432	01DE  51			 push cx
+    433	01DF  52			 push dx
+    434
+    435	01E0  8B D8			 mov bx, ax	 ; Сохраняем число
+    436	01E2  B9 0004			 mov cx, 4	 ; 4 цифры
+    437
+    438	01E5			     print_loop:
+    439	01E5  D1 C3 D1 C3 D1 C3	D1+	 rol bx, 4	 ; Сдвигаем старшую цифру в младшие	4 бита
+    440	      C3
+    441	01ED  8A C3			 mov al, bl
+    442	01EF  24 0F			 and al, 0Fh	 ; Изолируем цифру
+    443
+    444	01F1  3C 0A			 cmp al, 10
+    445	01F3  7C 05			 jl is_digit
+    446	01F5  04 37			 add al, 'A' - 10
+    447	01F7  EB 03 90			 jmp print_digit
+    448	01FA			     is_digit:
+    449	01FA  04 30			 add al, '0'
+    450
+    451	01FC			     print_digit:
+    452	01FC  8A D0			 mov dl, al
+    453	01FE  B4 02			 mov ah, 02h
+    454	0200  CD 21			 int 21h
+    455
+    456	0202  E2 E1			 loop print_loop
+Turbo Assembler	 Version 3.1	    04/19/25 21:56:59	    Page 9
+LAB_2.asm
+
+
+
+    457
+    458	0204  B2 68			 mov dl, 'h'
+    459	0206  B4 02			 mov ah, 02h
+    460	0208  CD 21			 int 21h
+    461
+    462	020A  5A			 pop dx
+    463	020B  59			 pop cx
+    464	020C  5B			 pop bx
+    465	020D  58			 pop ax
+    466	020E  C3			 ret
+    467	020F			     print_hex endp
+    468
+    469				     ; Вывод числа в	двоичном виде (16 бит)
+    470	020F			     print_binary proc
+    471	020F  50			 push ax
+    472	0210  53			 push bx
+    473	0211  51			 push cx
+    474	0212  52			 push dx
+    475
+    476	0213  8B D8			 mov bx, ax	 ;
+    477	0215  B9 0010			 mov cx, 16	 ; 16 бит для вывода
+    478
+    479	0218			     binary_loop:
+    480	0218  D1 C3			 rol bx, 1	 ; Сдвигаем старший бит в CF
+    481	021A  B2 30			 mov dl, '0'	 ; По	умолчанию выводим '0'
+    482	021C  73 02			 jnc print_bit	 ; Если CF=0, оставляем '0'
+    483	021E  B2 31			 mov dl, '1'	 ; Если CF=1, меняем на '1'
+    484
+    485	0220			     print_bit:
+    486	0220  53			 push bx	 ; Сохраняем BX (так как	INT 21h	портит его)
+    487	0221  B4 02			 mov ah, 02h	 ; Функция вывода символа
+    488	0223  CD 21			 int 21h	 ; Выводим '0' или '1'
+    489	0225  5B			 pop bx		 ; Восстанавливаем BX
+    490
+    491					 ; Добавляем пробел каждые	4 бита для удобства	    +
+    492				     чтения
+    493	0226  8B C1			 mov ax, cx	 ; Текущий счетчик в AX
+    494	0228  48			 dec ax		 ; Уменьшаем на 1 (т.к. CX	уже уменьшился	    +
+    495				     после	loop)
+    496	0229  A9 0003			 test ax, 03h	 ; Проверяем, кратно ли 4 (остаток от		    +
+    497				     деления на 4)
+    498	022C  75 0D			 jnz skip_space	 ; Если не кратно, пропускаем пробел
+    499
+    500					 ; Выводим пробел (только если это не последний бит)
+    501	022E  83 F9 01			 cmp cx, 1
+    502	0231  74 08			 je skip_space
+    503	0233  53			 push bx
+    504	0234  B2 20			 mov dl, ' '	 ; Пробел	для разделения тетрад
+    505	0236  B4 02			 mov ah, 02h
+    506	0238  CD 21			 int 21h
+    507	023A  5B			 pop bx
+    508
+    509	023B			     skip_space:
+    510	023B  E2 DB			 loop binary_loop
+    511
+    512					 ; Выводим 'b' в конце, чтобы	обозначить binary формат
+    513	023D  B2 62			 mov dl, 'b'
+Turbo Assembler	 Version 3.1	    04/19/25 21:56:59	    Page 10
+LAB_2.asm
+
+
+
+    514	023F  B4 02			 mov ah, 02h
+    515	0241  CD 21			 int 21h
+    516
+    517	0243  E8 FDBA			 call print_new_line ; Новая строка для удобства
+    518
+    519	0246  5A			 pop dx
+    520	0247  59			 pop cx
+    521	0248  5B			 pop bx
+    522	0249  58			 pop ax
+    523	024A  C3			 ret
+    524	024B			     print_binary endp
+    525
+    526				     end start
+Turbo Assembler	 Version 3.1	    04/19/25 21:56:59	    Page 11
+Symbol Table
+
+
+
+
+Symbol Name			  Type	 Value
+
+??DATE				  Text	 "04/19/25"
+??FILENAME			  Text	 "LAB_2	  "
+??TIME				  Text	 "21:56:59"
+??VERSION			  Number 030A
+@32BIT				  Text	 0
+@CODE				  Text	 _TEXT
+@CODESIZE			  Text	 0
+@CPU				  Text	 0101H
+@CURSEG				  Text	 _TEXT
+@DATA				  Text	 DGROUP
+@DATASIZE			  Text	 0
+@FILENAME			  Text	 LAB_2
+@INTERFACE			  Text	 00H
+@MODEL				  Text	 2
+@STACK				  Text	 DGROUP
+@WORDSIZE			  Text	 2
+ALL_GOOD			  Near	 _TEXT:009E
+AND_PROC			  Near	 _TEXT:0184
+BAD_INPUT			  Near	 _TEXT:00AB
+BAD_PEOPLE			  Near	 _TEXT:00A8
+BIG_LETTER			  Near	 _TEXT:00DA
+BINARY_LOOP			  Near	 _TEXT:0218
+BUFFER				  Byte	 DGROUP:0000
+CHECK_AFTER_READ_DIGIT		  Near	 _TEXT:0109
+COUNTSOFSYMBOL			  Number 000F
+DIG1				  Word	 DGROUP:0010
+DIG2				  Word	 DGROUP:0012
+END_CHECK			  Near	 _TEXT:0121
+END_HEX				  Near	 _TEXT:0108
+ERROR_MESSAGE			  Byte	 DGROUP:0130
+ERROR_MSG			  Byte	 DGROUP:010E
+GET_NUMBERS			  Near	 _TEXT:0065
+HEX				  Near	 _TEXT:00C3
+IF_SYMBOL_IS_ENTER		  Near	 _TEXT:005F
+INPUT_STRING_MSG		  Byte	 DGROUP:0018
+IS_DIGIT			  Near	 _TEXT:01FA
+IS_SIGN				  Near	 _TEXT:013C
+LOGIC_OPERATION			  Near	 _TEXT:0141
+NEXT				  Near	 _TEXT:0105
+NOT_PROC			  Near	 _TEXT:0178
+OPERATION			  Byte	 DGROUP:0015
+OR_PROC				  Near	 _TEXT:0195
+OVERFLOW_ERROR			  Near	 _TEXT:0122
+POSITIVE_CHECK			  Near	 _TEXT:011B
+POSITIVE_NUM			  Near	 _TEXT:01CC
+PRINT_BINARY			  Near	 _TEXT:020F
+PRINT_BIT			  Near	 _TEXT:0220
+PRINT_DIGIT			  Near	 _TEXT:01FC
+PRINT_HEX			  Near	 _TEXT:01DC
+PRINT_LOOP			  Near	 _TEXT:01E5
+PRINT_NEW_LINE			  Near	 _TEXT:0000
+PRINT_RESULT			  Near	 _TEXT:0036
+PRINT_SIGNED_HEX		  Near	 _TEXT:01B7
+PRINT_STR			  Near	 _TEXT:000F
+Turbo Assembler	 Version 3.1	    04/19/25 21:56:59	    Page 12
+Symbol Table
+
+
+
+PRINT_VALUE			  Near	 _TEXT:01D4
+PROMPT1				  Byte	 DGROUP:002D
+PROMPT2				  Byte	 DGROUP:004D
+READ_1_DIGIT			  Near	 _TEXT:00BD
+RESULT				  Word	 DGROUP:0016
+RESULT_AND			  Byte	 DGROUP:006E
+RESULT_NOT_FIRST		  Byte	 DGROUP:0094
+RESULT_NOT_FIRST_AGAIN		  Byte	 DGROUP:00CD
+RESULT_NOT_SECOND		  Byte	 DGROUP:00B0
+RESULT_NOT_SECOND_AGAIN		  Byte	 DGROUP:00ED
+RESULT_OR			  Byte	 DGROUP:007B
+RESULT_XOR			  Byte	 DGROUP:0087
+SIGN				  Byte	 DGROUP:0014
+SKIP_SPACE			  Near	 _TEXT:023B
+SKIP_SPACES			  Near	 _TEXT:00B7
+SMALL_LETTER			  Near	 _TEXT:00F1
+SPACES				  Near	 _TEXT:00B7
+START				  Near	 _TEXT:001B
+VALIDATE_INPUT			  Near	 _TEXT:0048
+VALIDATE_LOOP			  Near	 _TEXT:0052
+WHAT_IS_SIGN			  Near	 _TEXT:012E
+XOR_PROC			  Near	 _TEXT:01A6
+
+Macro Name
+
+PRINT_STRING
+
+Groups & Segments		  Bit Size Align  Combine Class
+
+DGROUP				  Group
+  STACK				  16  0100 Para	  Stack	  STACK
+  _DATA				  16  0180 Word	  Public  DATA
+_TEXT				  16  024B Word	  Public  CODE
+

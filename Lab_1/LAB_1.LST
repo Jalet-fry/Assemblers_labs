@@ -1,0 +1,320 @@
+Turbo Assembler	 Version 3.1	    04/19/25 21:56:21	    Page 1
+LAB_1.asm
+
+
+
+      1	0000			     .model small
+      2	0000			     .stack 100h
+      3	0000			     .data
+      4	      =000E			 CountsOfSymbol	EQU 14
+      5	0000  0F*(00)			 buffer	db CountsOfSymbol+1 dup(0)
+      6					 ;buffer db "  dkf hvkj	   cdefvkfv	fgrh   $"
+      7					 ;buffer db "  a b$"
+      8					 ;symbol_to_move db 0
+      9					 ;position_of_symbol_to_move db	0
+     10					 ;current_word_length db 0
+     11	000F  00			 max_word_length db 0
+     12	0010  0000			 max_word_start	dw 0
+     13	0012  0000			 current_new_start_sort	dw 0
+     14	0014  49 6E 70 75 74 20	79+	 input_string_msg db "Input your string:",0ah,0dh,'$'
+     15	      6F 75 72 20 73 74	72+
+     16	      69 6E 67 3A 0A 0D	24
+     17	0029  0A 59 6F 75 72 20	73+	 sorted_string_msg db 0ah,"Your	sorted string:",0ah,'$'
+     18	      6F 72 74 65 64 20	73+
+     19	      74 72 69 6E 67 3A	0A+
+     20	      24
+     21	003F  0A 0D 49 6E 76 61	6C+	 error_message db 0Ah,0Dh,"Invalid input! Only English letters and single spaces allowed.", +
+     22	      69 64 20 69 6E 70	75+  0Ah,0Dh,'$'
+     23	      74 21 20 4F 6E 6C	79+
+     24	      20 45 6E 67 6C 69	73+
+     25	      68 20 6C 65 74 74	65+
+     26	      72 73 20 61 6E 64	20+
+     27	      73 69 6E 67 6C 65	20+
+     28	      73 70 61 63 65 73	20+
+     29	      61 6C 6C 6F 77 65	64+
+     30	      2E 0A 0D 24
+     31	0082			     .code
+     32
+     33				     print_string macro	string
+     34					 mov ah,09h
+     35					 mov dx,offset string
+     36					 int 21h
+     37				     endm
+     38
+     39	0000			     print_str proc
+     40	0000  50			 push ax
+     41	0001  52			 push dx
+     42
+     43	0002  B4 09			 mov ah, 09h	; Функция DOS для вывода строки
+     44	0004  CD 21			 int 21h	; Вызов прерывания DOS
+     45
+     46					 ; Вывод перевода строки (CR+LF)
+     47	0006  B4 02			 mov ah, 02h	; Функция DOS для вывода символа
+     48	0008  B2 0D			 mov dl, 0Dh	; Символ возврата	каретки (CR)
+     49	000A  CD 21			 int 21h
+     50	000C  B2 0A			 mov dl, 0Ah	; Символ перевода	строки (LF)
+     51	000E  CD 21			 int 21h
+     52
+     53	0010  5A			 pop dx
+     54	0011  58			 pop ax
+     55	0012  C3			 ret
+     56	0013			     print_str endp
+     57				     ;Old
+Turbo Assembler	 Version 3.1	    04/19/25 21:56:21	    Page 2
+LAB_1.asm
+
+
+
+     58				     ;print_str	proc
+     59				     ;	  push ax
+     60				     ;	  mov ah,09h
+     61				     ;	  int 21h
+     62				     ;	  pop ax
+     63				     ;	  ret
+     64				     ;print_str	endp
+     65
+     66	0013			     start:
+     67	0013  B8 0000s			 mov ax,@data
+     68	0016  8E D8			 mov ds,ax
+     69	0018  8E C0			 mov es,ax
+     70					 print_string input_string_msg
+1    71	001A  B4 09			 mov ah,09h
+1    72	001C  BA 0014r			 mov dx,offset input_string_msg
+1    73	001F  CD 21			 int 21h
+     74					 ;mov dx, offset input_string_msg
+     75					 ;call print_str
+     76	0021  E8 001B			 call validate_input; Check input before sorting
+     77	0024  BA 0000r			 mov dx, offset	buffer
+     78	0027  E8 FFD6			 call print_str
+     79					 ;print_string buffer
+     80	002A  E8 0049			 call sort
+     81					 print_string sorted_string_msg
+1    82	002D  B4 09			 mov ah,09h
+1    83	002F  BA 0029r			 mov dx,offset sorted_string_msg
+1    84	0032  CD 21			 int 21h
+     85	0034  BA 0000r			 mov dx, offset	buffer
+     86	0037  E8 FFC6			 call print_str
+     87					 ;print_string buffer
+     88
+     89					 ;ret
+     90	003A  B8 4C00			 mov ax,4C00h
+     91	003D  CD 21			 int 21h
+     92
+     93
+     94				     ; ======= Input Validation	=======
+     95	003F			     validate_input proc
+     96	003F  BF 0000r			 LEA  DI,  buffer
+     97	0042  B9 000E			 mov cx, CountsOfSymbol
+     98	0045			     validate_loop:
+     99	0045  B4 01			 mov ah, 01h ;1	symbol
+    100	0047  CD 21			 int 21h
+    101	0049  3C 0D			 cmp al, 13
+    102	004B  74 23			 je if_symbol_is_enter
+    103	004D  3C 20			 cmp al, 32		   ; Space?
+    104	004F  74 1C			 je validate_next      ; If yes, check for double spaces
+    105	0051  3C 41			 cmp al, 'A'		   ; If	below 'A' -> invalid input
+    106	0053  7C 0C			 jl invalid_input
+    107	0055  3C 5A			 cmp al, 'Z'		   ; Within 'A-Z'?
+    108	0057  7E 14			 jle validate_next
+    109	0059  3C 61			 cmp al, 'a'		   ; If	below 'a' -> invalid input
+    110	005B  7C 04			 jl invalid_input
+    111	005D  3C 7A			 cmp al, 'z'		   ; Within 'a-z'?
+    112	005F  7E 0C			 jle validate_next
+    113
+    114	0061			     invalid_input:
+Turbo Assembler	 Version 3.1	    04/19/25 21:56:21	    Page 3
+LAB_1.asm
+
+
+
+    115					 print_string error_message
+1   116	0061  B4 09			 mov ah,09h
+1   117	0063  BA 003Fr			 mov dx,offset error_message
+1   118	0066  CD 21			 int 21h
+    119	0068  B8 4C00			 mov ax, 4c00h
+    120	006B  CD 21			 int 21h
+    121
+    122	006D			     validate_next:
+    123	006D  AA			 stosb
+    124	006E  E2 D5			 loop validate_loop
+    125	0070			     if_symbol_is_enter:
+    126	0070  B0 24			 mov al, '$'
+    127	0072  AA			 stosb
+    128	0073  B0 0D			 mov al, 13
+    129	0075  C3			 ret
+    130	0076			     validate_input endp
+    131
+    132				     ; ======= Sort =======
+    133	0076			     sort proc
+    134	0076  BE 0000r			 mov si,offset buffer
+    135	0079			     after_move_big_word:
+    136	0079  89 36 0012r		 mov current_new_start_sort, si
+    137	007D  C6 06 000Fr 00		 mov max_word_length, 0
+    138	0082  C7 06 0010r 0000		 mov max_word_start, 0
+    139	0088  FC			 CLD
+    140	0089			     spaces:
+    141	0089  3C 24			 cmp al, '$'
+    142	008B  74 2C			 je swap_words
+    143	008D  AC			 lodsb
+    144	008E  3C 20			 cmp al, ' '
+    145	0090  74 F7			 je spaces
+    146	0092  3C 24			 cmp al, '$'
+    147	0094  74 23			 je swap_words
+    148	0096  B2 00			 mov dl, 0
+    149	0098  8B DE			 mov bx, si
+    150	009A  4B			 dec bx;???????	? ?????? ?????
+    151	009B			     letter:
+    152	009B  80 C2 01			 add dl, 1
+    153					 ;mov al, [si]
+    154	009E  AC			 lodsb
+    155	009F  3C 20			 cmp al, ' '
+    156	00A1  74 04			 je check_word
+    157	00A3  3C 24			 cmp al, '$'
+    158	00A5  75 F4			 jne letter
+    159	00A7			     check_word:
+    160	00A7  3A 16 000Fr		 cmp dl, max_word_length
+    161					 ;it was old
+    162	00AB  7E DC			 jle spaces
+    163					 ;jl spaces
+    164	00AD  88 16 000Fr		 mov max_word_length, dl
+    165	00B1  89 1E 0010r		 mov max_word_start, bx
+    166	00B5  3C 20			 cmp al, ' '
+    167	00B7  74 D0			 je spaces
+    168
+    169	00B9			     swap_words:
+    170				     ;TODO:
+    171				     ;Check the	bigest is not firts
+Turbo Assembler	 Version 3.1	    04/19/25 21:56:21	    Page 4
+LAB_1.asm
+
+
+
+    172				     ;This 12 line is new, be careful
+    173					 ; Check if we need to move the	word
+    174					 ; Compare the start of	the longest word with the current position
+    175	00B9  50			 push ax
+    176	00BA  A1 0010r			 mov ax, max_word_start
+    177	00BD  3B 06 0012r		 cmp ax, current_new_start_sort
+    178	00C1  75 09			 jne continue_sorting  ; If addresses are not equal, continue sorting
+    179	00C3  58			 pop ax
+    180					 ; Check if we have reached the	end of the string ('$')
+    181	00C4  3C 24			 cmp al, '$'
+    182	00C6  74 4C			 je sort_final	; If end of string, exit sorting
+    183	00C8  3C 0D			 cmp al, 13
+    184	00CA  74 48			 je sort_final
+    185
+    186	00CC			     continue_sorting:
+    187	00CC  58			 pop ax
+    188					 ; Load	the length of the longest word into AH
+    189	00CD  8A 26 000Fr		 mov ah, max_word_length
+    190	00D1  FE C4			 inc ah
+    191	00D3			     move_by_length:
+    192	00D3  8B 3E 0010r		 mov di, max_word_start
+    193	00D7  8B F7			 mov si, di
+    194	00D9  FD			 STD
+    195	00DA  AC			 lodsb
+    196	00DB  8A D0			 mov dl,al
+    197	00DD  8B 0E 0010r		 mov cx, max_word_start
+    198	00E1  2B 0E 0012r		 sub cx, current_new_start_sort
+    199
+    200	00E5			     move_words:
+    201	00E5  83 F9 00			 cmp cx, 0
+    202	00E8  7E 2A			 jle sort_final
+    203	00EA  AC			 lodsb
+    204	00EB  AA			 stosb
+    205	00EC  E2 F7			 loop move_words
+    206	00EE			     stop_moving:
+    207	00EE  8B 3E 0012r		 mov di, current_new_start_sort
+    208	00F2  8A C2			 mov al, dl
+    209	00F4  AA			 stosb
+    210	00F5  FE CC			 dec ah
+    211	00F7  80 FC 01			 cmp ah, 1
+    212	00FA  75 04			 jne still_in_word
+    213	00FC  FF 0E 0010r		 dec max_word_start
+    214				     ;a	bc
+    215				     ;bca ;
+    216				     ;bcaa
+    217				     ;bc a
+    218	0100			     still_in_word:
+    219	0100  FF 06 0012r		 inc current_new_start_sort
+    220	0104  FF 06 0010r		 inc max_word_start
+    221	0108  80 FC 00			 cmp ah, 0
+    222	010B  75 C6			 jne move_by_length
+    223	010D  8B 36 0012r		 mov si, current_new_start_sort
+    224	0111  E9 FF65			 jmp after_move_big_word
+    225				     ;ab cde fghi
+    226				     ;fghiab cde
+    227				     ;a	bc
+    228				     ;bca
+Turbo Assembler	 Version 3.1	    04/19/25 21:56:21	    Page 5
+LAB_1.asm
+
+
+
+    229	0114			     sort_final:
+    230	0114  C3			 ret
+    231	0115			     sort endp
+    232				     end start
+Turbo Assembler	 Version 3.1	    04/19/25 21:56:21	    Page 6
+Symbol Table
+
+
+
+
+Symbol Name			  Type	 Value
+
+??DATE				  Text	 "04/19/25"
+??FILENAME			  Text	 "LAB_1	  "
+??TIME				  Text	 "21:56:21"
+??VERSION			  Number 030A
+@32BIT				  Text	 0
+@CODE				  Text	 _TEXT
+@CODESIZE			  Text	 0
+@CPU				  Text	 0101H
+@CURSEG				  Text	 _TEXT
+@DATA				  Text	 DGROUP
+@DATASIZE			  Text	 0
+@FILENAME			  Text	 LAB_1
+@INTERFACE			  Text	 00H
+@MODEL				  Text	 2
+@STACK				  Text	 DGROUP
+@WORDSIZE			  Text	 2
+AFTER_MOVE_BIG_WORD		  Near	 _TEXT:0079
+BUFFER				  Byte	 DGROUP:0000
+CHECK_WORD			  Near	 _TEXT:00A7
+CONTINUE_SORTING		  Near	 _TEXT:00CC
+COUNTSOFSYMBOL			  Number 000E
+CURRENT_NEW_START_SORT		  Word	 DGROUP:0012
+ERROR_MESSAGE			  Byte	 DGROUP:003F
+IF_SYMBOL_IS_ENTER		  Near	 _TEXT:0070
+INPUT_STRING_MSG		  Byte	 DGROUP:0014
+INVALID_INPUT			  Near	 _TEXT:0061
+LETTER				  Near	 _TEXT:009B
+MAX_WORD_LENGTH			  Byte	 DGROUP:000F
+MAX_WORD_START			  Word	 DGROUP:0010
+MOVE_BY_LENGTH			  Near	 _TEXT:00D3
+MOVE_WORDS			  Near	 _TEXT:00E5
+PRINT_STR			  Near	 _TEXT:0000
+SORT				  Near	 _TEXT:0076
+SORTED_STRING_MSG		  Byte	 DGROUP:0029
+SORT_FINAL			  Near	 _TEXT:0114
+SPACES				  Near	 _TEXT:0089
+START				  Near	 _TEXT:0013
+STILL_IN_WORD			  Near	 _TEXT:0100
+STOP_MOVING			  Near	 _TEXT:00EE
+SWAP_WORDS			  Near	 _TEXT:00B9
+VALIDATE_INPUT			  Near	 _TEXT:003F
+VALIDATE_LOOP			  Near	 _TEXT:0045
+VALIDATE_NEXT			  Near	 _TEXT:006D
+
+Macro Name
+
+PRINT_STRING
+
+Groups & Segments		  Bit Size Align  Combine Class
+
+DGROUP				  Group
+  STACK				  16  0100 Para	  Stack	  STACK
+  _DATA				  16  0082 Word	  Public  DATA
+_TEXT				  16  0115 Word	  Public  CODE
+

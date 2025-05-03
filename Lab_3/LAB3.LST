@@ -1,0 +1,624 @@
+Turbo Assembler	 Version 3.1	    04/19/25 22:00:51	    Page 1
+LAB3.asm
+
+
+
+      1	    0000			 .model	small
+      2	    0000			 .stack	100h
+      3					 .386
+      4	    0000			 .data
+      5
+      6	    0000  42 61	64 20 63 6D 64+	 bad_params_message db "Bad cmd	arguments", '$'
+      7		  20 61	72 67 75 6D 65+
+      8		  6E 74	73 24
+      9	    0012  43 61	6E 6E 6F 74 20+	 bad_source_file_message db "Cannot open file",	'$'
+     10		  6F 70	65 6E 20 66 69+
+     11		  6C 65	24
+     12	    0023  46 69	6C 65 20 6E 6F+	 file_not_found_message	db "File not found", '$'
+     13		  74 20	66 6F 75 6E 64+
+     14		  24
+     15	    0032  43 61	6E 6E 6F 74 20+	 error_closing_file_message db "Cannot close file", '$'
+     16		  63 6C	6F 73 65 20 66+
+     17		  69 6C	65 24
+     18	    0044  45 72	72 6F 72 20 72+	 error_read_file_text_message db "Error	reading	from file", '$'
+     19		  65 61	64 69 6E 67 20+
+     20		  66 72	6F 6D 20 66 69+
+     21		  6C 65	24
+     22	    005C  46 69	6C 65 20 69 73+	 file_is_empty_message db "File	is empty", '$'
+     23		  20 65	6D 70 74 79 24
+     24	    006A  4E 75	6D 62 65 72 20+	 result_message	db "Number of lines with a length less than specified :	", '$'
+     25		  6F 66	20 6C 69 6E 65+
+     26		  73 20	77 69 74 68 20+
+     27		  61 20	6C 65 6E 67 74+
+     28		  68 20	6C 65 73 73 20+
+     29		  74 68	61 6E 20 73 70+
+     30		  65 63	69 66 69 65 64+
+     31		  20 3A	20 24
+     32
+     33	    009F  0A			 b_num_10 db 10
+     34
+     35		  =0020			 space_char equ	32
+     36		  =000D			 new_line_char equ 13
+     37		  =000A			 return_char equ 10
+     38		  =0009			 tabulation equ	9
+     39		  =0000			 endl_char equ 0
+     40	    00A0  ??			 symbol	 db ?
+     41	    00A1  0000			 flag_not_empty	dw 0
+     42
+     43		  =007E			 max_size equ 126
+     44	    00A3  ??			 cmd_size db ?
+     45	    00A4  80*(00)		 cmd_text db max_size +	2 dup(0)
+     46	    0124  80*(00)		 path db max_size + 2 dup(0)
+     47	    01A4  80*(00)		 number_text db	max_size + 2 dup(0)
+     48
+     49	    0224  0A			 num_10	db 10
+     50
+     51	    0225  0000			 temp_length dw	0
+     52	    0227  0000			 file_desc dw 0
+     53	    0229  0000			 max_length dw 0
+     54	    022B  0000			 lines_counter dw 0
+     55	    022D  80*(00)		 buffer	db max_size + 2	dup(0)
+     56
+     57	    02AD			 .code
+Turbo Assembler	 Version 3.1	    04/19/25 22:00:51	    Page 2
+LAB3.asm
+
+
+
+     58
+     59					 exit_app macro
+     60					    mov	ax, 4C00h
+     61					    int	21h
+     62					 endm
+     63
+     64					 show_str macro	out_str
+     65						 push ax
+     66						 push dx
+     67						 mov ah, 9h
+     68						 mov dx, offset	out_str
+     69						 int 21h
+     70						 ;mov dl, 10
+     71						 mov dl, return_char
+     72						 mov ah, 2h
+     73						 int 21h
+     74						 ;mov dl, 13
+     75						 mov dl, new_line_char
+     76						 mov ah, 2h
+     77						 int 21h
+     78						 pop dx
+     79						 pop ax
+     80					 endm
+     81
+     82					 is_empty_line macro text_line,	marker
+     83						 push si
+     84						 mov si, offset	text_line
+     85						 call strlen
+     86						 pop si
+     87						 cmp ax, 0
+     88						 je marker
+     89					 endm
+     90
+     91	    0000			 strlen	proc
+     92	    0000  53				 push bx
+     93	    0001  56				 push si
+     94	    0002  33 C0				 xor ax, ax
+     95	    0004			 start_calculation:
+     96	    0004  8A 1C				 mov bl, ds:[si]
+     97	    0006  80 FB	00			 cmp bl, endl_char
+     98	    0009  74 06	90 90			 je end_calculation
+     99	    000D  46				 inc si
+    100	    000E  40				 inc ax
+    101	    000F  EB F3				 jmp start_calculation
+    102	    0011			 end_calculation:
+    103	    0011  5E				 pop si
+    104	    0012  5B				 pop bx
+    105	    0013  C3				 ret
+    106	    0014			 endp
+    107
+    108					 read_cmd macro
+    109					     xor ch, ch
+    110						 mov cl, ds:[80h]
+    111						 mov cmd_size, cl
+    112						 mov si, 81h
+    113						 mov di, offset	cmd_text
+    114						 rep movsb
+Turbo Assembler	 Version 3.1	    04/19/25 22:00:51	    Page 3
+LAB3.asm
+
+
+
+    115					 endm
+    116
+    117	    0014			 print_result proc
+    118	    0014  52			     push dx
+    119	    0015  53			     push bx
+    120	    0016  8B D8			     mov bx, ax
+    121	    0018  8B EC			     mov bp, sp
+    122	    001A			 loop1:
+    123	    001A  3D 0000		     cmp ax, 0
+    124	    001D  74 0C	90 90		     je	skip_actions
+    125	    0021  F6 36	009Fr		     div b_num_10
+    126	    0025  33 DB			     xor bx, bx
+    127	    0027  8A DC			     mov bl, ah
+    128	    0029  32 E4			     xor ah, ah
+    129	    002B			 skip_actions:
+    130	    002B  53			     push bx
+    131	    002C  3C 00			     cmp al, 0
+    132	    002E  74 04	90 90		     je	print_num
+    133	    0032  EB E6			     jmp loop1
+    134	    0034			 print_num:
+    135	    0034				 loop3:
+    136	    0034  33 D2				 xor dx, dx
+    137	    0036  5B				 pop bx
+    138	    0037  83 C3	30			 add bx, '0'
+    139	    003A  B4 02				 mov ah, 02h
+    140	    003C  8A D3				 mov dl, bl
+    141	    003E  CD 21				 int 21h
+    142	    0040  3B EC				 cmp bp, sp
+    143	    0042  75 F0				 jne loop3
+    144	    0044  5B			     pop bx
+    145	    0045  5A			     pop dx
+    146	    0046  C3			     ret
+    147	    0047			 endp
+    148
+    149	    0047			 conv proc
+    150	    0047  60			     pusha
+    151	    0048  57			     push di
+    152	    0049  56			     push si
+    153	    004A  BF 01A4r		     mov di, offset number_text
+    154	    004D  BE 01A4r		     mov si, offset number_text
+    155	    0050  33 C9			     xor cx, cx
+    156	    0052  E8 FFAB		     call strlen
+    157	    0055  8B C8			     mov cx, ax
+    158	    0057  33 C0			     xor ax, ax
+    159	    0059  BE 000A		     mov si, 10
+    160	    005C  32 FF			     xor bh, bh
+    161	    005E			 m1:
+    162	    005E  F7 E6			     mul si
+    163	    0060  72 72	90 90		     jc	bad_cmd
+    164	    0064  8A 1D			     mov bl, [di]
+    165	    0066  80 FB	30		     cmp bl, 30h
+    166	    0069  7C 69	90 90		     jl	bad_cmd
+    167	    006D  80 FB	39		     cmp bl, 39h
+    168	    0070  7F 62	90 90		     jg	bad_cmd
+    169	    0074  80 EB	30		     sub bl, 30h
+    170	    0077  03 C3			     add ax, bx
+    171	    0079  47			     inc di
+Turbo Assembler	 Version 3.1	    04/19/25 22:00:51	    Page 4
+LAB3.asm
+
+
+
+    172	    007A  E2 E2			     loop m1
+    173	    007C  A3 0229r		     mov max_length, ax
+    174	    007F  5E			     pop si
+    175	    0080  5F			     pop di
+    176	    0081  61			     popa
+    177	    0082  C3			 ret
+    178	    0083			 endp
+    179
+    180	    0083			 read_from_cmd proc
+    181	    0083  53				 push bx
+    182	    0084  51				 push cx
+    183	    0085  52				 push dx
+    184	    0086  8A 0E	00A3r			 mov cl, cmd_size
+    185	    008A  32 ED				 xor ch, ch
+    186	    008C  BE 00A4r			 mov si, offset	cmd_text
+    187	    008F  BF 022Dr			 mov di, offset	buffer
+    188	    0092  E8 006A			 call rewrite_word
+    189	    0095			 next_word:
+    190	    0095  BF 0124r			 mov di, offset	path
+    191	    0098  E8 0064			 call rewrite_word
+    192						 is_empty_line path, bad_cmd
+1   193	    009B  56				 push si
+1   194	    009C  BE 0124r			 mov si, offset	path
+1   195	    009F  E8 FF5E			 call strlen
+1   196	    00A2  5E				 pop si
+1   197	    00A3  3D 0000			 cmp ax, 0
+1   198	    00A6  74 2C	90 90			 je bad_cmd
+    199	    00AA  BF 01A4r			 mov di, offset	number_text
+    200	    00AD  E8 004F			 call rewrite_word
+    201	    00B0  E8 FF94			 call conv
+    202	    00B3  60				 pusha
+    203	    00B4  A1 0229r			 mov ax, max_length
+    204						 ;cmp ax, 32768
+    205	    00B7  3D 8000			 cmp ax, 8000h
+    206	    00BA  73 18	90 90			 jae bad_cmd
+    207	    00BE  61			     popa
+    208	    00BF  BF 022Dr			 mov di, offset	buffer
+    209	    00C2  E8 003A			 call rewrite_word
+    210						 is_empty_line buffer, cmd_is_good
+1   211	    00C5  56				 push si
+1   212	    00C6  BE 022Dr			 mov si, offset	buffer
+1   213	    00C9  E8 FF34			 call strlen
+1   214	    00CC  5E				 pop si
+1   215	    00CD  3D 0000			 cmp ax, 0
+1   216	    00D0  74 1F	90 90			 je cmd_is_good
+    217	    00D4			 bad_cmd:
+    218						 show_str bad_params_message
+1   219	    00D4  50				 push ax
+1   220	    00D5  52				 push dx
+1   221	    00D6  B4 09				 mov ah, 9h
+1   222	    00D8  BA 0000r			 mov dx, offset	bad_params_message
+1   223	    00DB  CD 21				 int 21h
+1   224	    00DD  B2 0A				 mov dl, return_char
+1   225	    00DF  B4 02				 mov ah, 2h
+1   226	    00E1  CD 21				 int 21h
+1   227	    00E3  B2 0D				 mov dl, new_line_char
+1   228	    00E5  B4 02				 mov ah, 2h
+Turbo Assembler	 Version 3.1	    04/19/25 22:00:51	    Page 5
+LAB3.asm
+
+
+
+1   229	    00E7  CD 21				 int 21h
+1   230	    00E9  5A				 pop dx
+1   231	    00EA  58				 pop ax
+    232	    00EB  B8 0001			 mov ax, 1
+    233	    00EE  EB 04	90			 jmp endproc
+    234	    00F1			 cmd_is_good:
+    235	    00F1  B8 0000			 mov ax, 0
+    236	    00F4			 endproc:
+    237	    00F4  5A				 pop dx
+    238	    00F5  59				 pop cx
+    239	    00F6  5B				 pop bx
+    240	    00F7  3D 0000			 cmp ax, 0
+    241	    00FA  0F 85	01AB			 jne end_main
+    242	    00FE  C3				 ret
+    243	    00FF			 endp
+    244
+    245	    00FF			 rewrite_word proc
+    246	    00FF  50				 push ax
+    247	    0100  51				 push cx
+    248	    0101  57				 push di
+    249	    0102			 loop_parse_word:
+    250	    0102  8A 04				 mov al, ds:[si]
+    251	    0104  3C 20				 cmp al, space_char
+    252	    0106  74 21	90 90			 je is_stopped_char
+    253	    010A  3C 0D				 cmp al, new_line_char
+    254	    010C  74 1B	90 90			 je is_stopped_char
+    255	    0110  3C 09				 cmp al, tabulation
+    256	    0112  74 15	90 90			 je is_stopped_char
+    257	    0116  3C 0A				 cmp al, return_char
+    258	    0118  74 0F	90 90			 je is_stopped_char
+    259	    011C  3C 00				 cmp al, endl_char
+    260	    011E  74 09	90 90			 je is_stopped_char
+    261	    0122  26: 88 05			 mov es:[di], al
+    262	    0125  47				 inc di
+    263	    0126  46				 inc si
+    264	    0127  E2 D9				 loop loop_parse_word
+    265	    0129			 is_stopped_char:
+    266	    0129  B0 00				 mov al, endl_char
+    267	    012B  26: 88 05			 mov es:[di], al
+    268	    012E  46				 inc si
+    269	    012F  5F				 pop di
+    270	    0130  59				 pop cx
+    271	    0131  58				 pop ax
+    272	    0132  C3				 ret
+    273	    0133			 endp
+    274
+    275	    0133			 open_file proc
+    276	    0133  53				 push bx
+    277	    0134  52				 push dx
+    278	    0135  B4 3D				 mov ah, 3Dh
+    279	    0137  B0 00				 mov al,00h
+    280	    0139  BA 0124r			 mov dx, offset	path
+    281	    013C  CD 21				 int 21h
+    282	    013E  72 0B	90 90			 jb bad_open
+    283	    0142  A3 0227r			 mov file_desc,	ax
+    284	    0145  B8 0000			 mov ax, 0
+    285	    0148  EB 3C	90			 jmp end_open
+Turbo Assembler	 Version 3.1	    04/19/25 22:00:51	    Page 6
+LAB3.asm
+
+
+
+    286	    014B			 bad_open:
+    287						 show_str bad_source_file_message
+1   288	    014B  50				 push ax
+1   289	    014C  52				 push dx
+1   290	    014D  B4 09				 mov ah, 9h
+1   291	    014F  BA 0012r			 mov dx, offset	bad_source_file_message
+1   292	    0152  CD 21				 int 21h
+1   293	    0154  B2 0A				 mov dl, return_char
+1   294	    0156  B4 02				 mov ah, 2h
+1   295	    0158  CD 21				 int 21h
+1   296	    015A  B2 0D				 mov dl, new_line_char
+1   297	    015C  B4 02				 mov ah, 2h
+1   298	    015E  CD 21				 int 21h
+1   299	    0160  5A				 pop dx
+1   300	    0161  58				 pop ax
+    301	    0162  3D 0002			 cmp ax, 02h
+    302	    0165  75 1C	90 90			 jne error_found
+    303						 show_str file_not_found_message
+1   304	    0169  50				 push ax
+1   305	    016A  52				 push dx
+1   306	    016B  B4 09				 mov ah, 9h
+1   307	    016D  BA 0023r			 mov dx, offset	file_not_found_message
+1   308	    0170  CD 21				 int 21h
+1   309	    0172  B2 0A				 mov dl, return_char
+1   310	    0174  B4 02				 mov ah, 2h
+1   311	    0176  CD 21				 int 21h
+1   312	    0178  B2 0D				 mov dl, new_line_char
+1   313	    017A  B4 02				 mov ah, 2h
+1   314	    017C  CD 21				 int 21h
+1   315	    017E  5A				 pop dx
+1   316	    017F  58				 pop ax
+    317	    0180  EB 01	90			 jmp error_found
+    318	    0183			 error_found:
+    319	    0183  B8 0001			 mov ax, 1
+    320	    0186			 end_open:
+    321	    0186  5A				 pop dx
+    322	    0187  5B				 pop bx
+    323	    0188  3D 0000			 cmp ax, 0
+    324	    018B  0F 85	011A			 jne end_main
+    325	    018F  C3				 ret
+    326	    0190			 endp
+    327
+    328	    0190			 file_handling proc
+    329	    0190  60			     pusha
+    330	    0191  C7 06	022Br 0000	     mov lines_counter,	0
+    331	    0197  BE 0000		     mov si, 0
+    332	    019A  C7 06	00A1r 0000	     mov flag_not_empty, 0
+    333	    01A0			 read_next_char:
+    334	    01A0  B4 3F			     mov ah, 3Fh
+    335	    01A2  8B 1E	0227r		     mov bx, file_desc
+    336	    01A6  B9 0001		     mov cx, 1
+    337	    01A9  BA 00A0r		     lea dx, symbol
+    338	    01AC  CD 21			     int 21h
+    339	    01AE  72 6E	90 90		     jc	read_error
+    340	    01B2  3D 0000		     cmp ax, 0
+    341	    01B5  74 3B	90 90		     je	end_of_file
+    342	    01B9  C7 06	00A1r 0001	     mov flag_not_empty, 1
+Turbo Assembler	 Version 3.1	    04/19/25 22:00:51	    Page 7
+LAB3.asm
+
+
+
+    343	    01BF  A0 00A0r		     mov al, symbol
+    344	    01C2  3C 0D			     cmp al, 0Dh
+    345	    01C4  74 0B	90 90		     je	process_cr
+    346	    01C8  3C 0A			     cmp al, 0Ah
+    347	    01CA  74 0A	90 90		     je	process_lf
+    348	    01CE  46			     inc si
+    349	    01CF  EB CF			     jmp read_next_char
+    350	    01D1			 process_cr:
+    351	    01D1  E8 0007		     call check_line_length
+    352	    01D4  EB CA			     jmp read_next_char
+    353	    01D6			 process_lf:
+    354	    01D6  E8 0002		     call check_line_length
+    355	    01D9  EB C5			     jmp read_next_char
+    356	    01DB			 check_line_length:
+    357	    01DB  83 FE	00			 cmp si, 0	     ; Если	строка пустая (длина 0),	    +
+    358					 пропускаем
+    359	    01DE  74 0E	90 90		     je	skip_increment
+    360	    01E2  3B 36	0229r		     cmp si, max_length
+    361	    01E6  7D 06	90 90		     jge skip_increment
+    362	    01EA  FF 06	022Br		     inc lines_counter
+    363	    01EE			 skip_increment:
+    364	    01EE  BE 0000		     mov si, 0
+    365	    01F1  C3			     ret
+    366	    01F2			 end_of_file:
+    367	    01F2  83 FE	00		     cmp si, 0
+    368	    01F5  74 05	90 90		     je	check_empty_file
+    369	    01F9  E8 FFDF		     call check_line_length
+    370	    01FC			 check_empty_file:
+    371	    01FC  83 3E	00A1r 00	     cmp flag_not_empty, 0
+    372	    0201  75 19	90 90		     jne handling_done
+    373					     show_str file_is_empty_message
+1   374	    0205  50				 push ax
+1   375	    0206  52				 push dx
+1   376	    0207  B4 09				 mov ah, 9h
+1   377	    0209  BA 005Cr			 mov dx, offset	file_is_empty_message
+1   378	    020C  CD 21				 int 21h
+1   379	    020E  B2 0A				 mov dl, return_char
+1   380	    0210  B4 02				 mov ah, 2h
+1   381	    0212  CD 21				 int 21h
+1   382	    0214  B2 0D				 mov dl, new_line_char
+1   383	    0216  B4 02				 mov ah, 2h
+1   384	    0218  CD 21				 int 21h
+1   385	    021A  5A				 pop dx
+1   386	    021B  58				 pop ax
+    387	    021C			 handling_done:
+    388	    021C  61			     popa
+    389	    021D  C3			     ret
+    390	    021E			 read_error:
+    391					     show_str error_read_file_text_message
+1   392	    021E  50				 push ax
+1   393	    021F  52				 push dx
+1   394	    0220  B4 09				 mov ah, 9h
+1   395	    0222  BA 0044r			 mov dx, offset	error_read_file_text_message
+1   396	    0225  CD 21				 int 21h
+1   397	    0227  B2 0A				 mov dl, return_char
+1   398	    0229  B4 02				 mov ah, 2h
+1   399	    022B  CD 21				 int 21h
+Turbo Assembler	 Version 3.1	    04/19/25 22:00:51	    Page 8
+LAB3.asm
+
+
+
+1   400	    022D  B2 0D				 mov dl, new_line_char
+1   401	    022F  B4 02				 mov ah, 2h
+1   402	    0231  CD 21				 int 21h
+1   403	    0233  5A				 pop dx
+1   404	    0234  58				 pop ax
+    405	    0235  61			     popa
+    406	    0236  C3			     ret
+    407	    0237			 endp
+    408
+    409	    0237			 close_file proc
+    410	    0237  53				 push bx
+    411	    0238  51				 push cx
+    412	    0239  33 C9				 xor cx, cx
+    413	    023B  B4 3E				 mov ah, 3Eh
+    414	    023D  8B 1E	0227r			 mov bx, file_desc
+    415	    0241  CD 21				 int 21h
+    416	    0243  73 1A	90 90			 jnb good_close
+    417						 show_str error_closing_file_message
+1   418	    0247  50				 push ax
+1   419	    0248  52				 push dx
+1   420	    0249  B4 09				 mov ah, 9h
+1   421	    024B  BA 0032r			 mov dx, offset	error_closing_file_message
+1   422	    024E  CD 21				 int 21h
+1   423	    0250  B2 0A				 mov dl, return_char
+1   424	    0252  B4 02				 mov ah, 2h
+1   425	    0254  CD 21				 int 21h
+1   426	    0256  B2 0D				 mov dl, new_line_char
+1   427	    0258  B4 02				 mov ah, 2h
+1   428	    025A  CD 21				 int 21h
+1   429	    025C  5A				 pop dx
+1   430	    025D  58				 pop ax
+    431	    025E  41				 inc cx
+    432	    025F			 good_close:
+    433	    025F  8B C1				 mov ax, cx
+    434	    0261  59				 pop cx
+    435	    0262  5B				 pop bx
+    436	    0263  3D 0000			 cmp ax, 0
+    437	    0266  75 41	90 90			 jne end_main
+    438	    026A  C3				 ret
+    439	    026B			 endp
+    440
+    441	    026B			 start:
+    442	    026B  B8 0000s			 mov ax, @data
+    443	    026E  8E C0				 mov es, ax
+    444						 read_cmd
+1   445	    0270  32 ED			     xor ch, ch
+1   446	    0272  8A 0E	0080			 mov cl, ds:[80h]
+1   447	    0276  88 0E	00A3r			 mov cmd_size, cl
+1   448	    027A  BE 0081			 mov si, 81h
+1   449	    027D  BF 00A4r			 mov di, offset	cmd_text
+1   450	    0280  F3> A4			 rep movsb
+    451	    0282  8E D8				 mov ds, ax
+    452	    0284  E8 FDFC			 call read_from_cmd
+    453	    0287  E8 FEA9		     call open_file
+    454	    028A  E8 FF03			 call file_handling
+    455	    028D  E8 FFA7			 call close_file
+    456	    0290  B4 09			     mov ah, 9h
+Turbo Assembler	 Version 3.1	    04/19/25 22:00:51	    Page 9
+LAB3.asm
+
+
+
+    457	    0292  BA 006Ar			 mov dx, offset	result_message
+    458	    0295  CD 21				 int 21h
+    459	    0297  A1 022Br			 mov ax, lines_counter
+    460	    029A  E8 FD77		     call print_result
+    461					    ;mov dl, 10
+    462	    029D  B2 0A			    mov	dl, return_char
+    463	    029F  B4 02				 mov ah, 2h
+    464	    02A1  CD 21				 int 21h
+    465						 ;mov dl, 13
+    466	    02A3  B2 0D				 mov dl, new_line_char
+    467	    02A5  B4 02				 mov ah, 2h
+    468	    02A7  CD 21				 int 21h
+    469	    02A9			 end_main:
+    470						 exit_app
+1   471	    02A9  B8 4C00		    mov	ax, 4C00h
+1   472	    02AC  CD 21			    int	21h
+    473					 end start
+Turbo Assembler	 Version 3.1	    04/19/25 22:00:51	    Page 10
+Symbol Table
+
+
+
+
+Symbol Name			  Type	 Value
+
+??DATE				  Text	 "04/19/25"
+??FILENAME			  Text	 "LAB3	  "
+??TIME				  Text	 "22:00:51"
+??VERSION			  Number 030A
+@32BIT				  Text	 0
+@CODE				  Text	 _TEXT
+@CODESIZE			  Text	 0
+@CPU				  Text	 0F0FH
+@CURSEG				  Text	 _TEXT
+@DATA				  Text	 DGROUP
+@DATASIZE			  Text	 0
+@FILENAME			  Text	 LAB3
+@INTERFACE			  Text	 00H
+@MODEL				  Text	 2
+@STACK				  Text	 DGROUP
+@WORDSIZE			  Text	 2
+BAD_CMD				  Near	 _TEXT:00D4
+BAD_OPEN			  Near	 _TEXT:014B
+BAD_PARAMS_MESSAGE		  Byte	 DGROUP:0000
+BAD_SOURCE_FILE_MESSAGE		  Byte	 DGROUP:0012
+BUFFER				  Byte	 DGROUP:022D
+B_NUM_10			  Byte	 DGROUP:009F
+CHECK_EMPTY_FILE		  Near	 _TEXT:01FC
+CHECK_LINE_LENGTH		  Near	 _TEXT:01DB
+CLOSE_FILE			  Near	 _TEXT:0237
+CMD_IS_GOOD			  Near	 _TEXT:00F1
+CMD_SIZE			  Byte	 DGROUP:00A3
+CMD_TEXT			  Byte	 DGROUP:00A4
+CONV				  Near	 _TEXT:0047
+ENDL_CHAR			  Number 0000
+ENDPROC				  Near	 _TEXT:00F4
+END_CALCULATION			  Near	 _TEXT:0011
+END_MAIN			  Near	 _TEXT:02A9
+END_OF_FILE			  Near	 _TEXT:01F2
+END_OPEN			  Near	 _TEXT:0186
+ERROR_CLOSING_FILE_MESSAGE	  Byte	 DGROUP:0032
+ERROR_FOUND			  Near	 _TEXT:0183
+ERROR_READ_FILE_TEXT_MESSAGE	  Byte	 DGROUP:0044
+FILE_DESC			  Word	 DGROUP:0227
+FILE_HANDLING			  Near	 _TEXT:0190
+FILE_IS_EMPTY_MESSAGE		  Byte	 DGROUP:005C
+FILE_NOT_FOUND_MESSAGE		  Byte	 DGROUP:0023
+FLAG_NOT_EMPTY			  Word	 DGROUP:00A1
+GOOD_CLOSE			  Near	 _TEXT:025F
+HANDLING_DONE			  Near	 _TEXT:021C
+IS_STOPPED_CHAR			  Near	 _TEXT:0129
+LINES_COUNTER			  Word	 DGROUP:022B
+LOOP1				  Near	 _TEXT:001A
+LOOP3				  Near	 _TEXT:0034
+LOOP_PARSE_WORD			  Near	 _TEXT:0102
+M1				  Near	 _TEXT:005E
+MAX_LENGTH			  Word	 DGROUP:0229
+MAX_SIZE			  Number 007E
+NEW_LINE_CHAR			  Number 000D
+Turbo Assembler	 Version 3.1	    04/19/25 22:00:51	    Page 11
+Symbol Table
+
+
+
+NEXT_WORD			  Near	 _TEXT:0095
+NUMBER_TEXT			  Byte	 DGROUP:01A4
+NUM_10				  Byte	 DGROUP:0224
+OPEN_FILE			  Near	 _TEXT:0133
+PATH				  Byte	 DGROUP:0124
+PRINT_NUM			  Near	 _TEXT:0034
+PRINT_RESULT			  Near	 _TEXT:0014
+PROCESS_CR			  Near	 _TEXT:01D1
+PROCESS_LF			  Near	 _TEXT:01D6
+READ_ERROR			  Near	 _TEXT:021E
+READ_FROM_CMD			  Near	 _TEXT:0083
+READ_NEXT_CHAR			  Near	 _TEXT:01A0
+RESULT_MESSAGE			  Byte	 DGROUP:006A
+RETURN_CHAR			  Number 000A
+REWRITE_WORD			  Near	 _TEXT:00FF
+SKIP_ACTIONS			  Near	 _TEXT:002B
+SKIP_INCREMENT			  Near	 _TEXT:01EE
+SPACE_CHAR			  Number 0020
+START				  Near	 _TEXT:026B
+START_CALCULATION		  Near	 _TEXT:0004
+STRLEN				  Near	 _TEXT:0000
+SYMBOL				  Byte	 DGROUP:00A0
+TABULATION			  Number 0009
+TEMP_LENGTH			  Word	 DGROUP:0225
+
+Macro Name
+
+EXIT_APP
+IS_EMPTY_LINE
+READ_CMD
+SHOW_STR
+
+Groups & Segments		  Bit Size Align  Combine Class
+
+DGROUP				  Group
+  STACK				  16  0100 Para	  Stack	  STACK
+  _DATA				  16  02AD Word	  Public  DATA
+_TEXT				  16  02AE Word	  Public  CODE
+

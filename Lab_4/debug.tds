@@ -1,0 +1,7 @@
+; debug.td — скрипт для Turbo Debugger
+!ViewRegisters      ; Показать регистры
+!Watch var1         ; Добавить var1 в Watch
+!Watch var2         ; Добавить var2 в Watch
+!Watch AX           ; Следить за регистром AX
+!ARGS text.txt 2 5 
+!EIP                ; Установить на начало программы

@@ -1,0 +1,11 @@
+! Добавление переменных в Watch Window
+w buffer
+w symbol_to_move
+w position_of_symbol_to_move
+w current_word_length
+w max_word_length
+w max_word_start
+w current_new_start_sort
+w input_string_msg
+w sorted_string_msg
+w error_message
