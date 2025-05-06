@@ -242,7 +242,7 @@ endp
 open_file proc
     push bx               
     push dx               
-    mov ah, 3Dh           ; Функция DOS 3Dh - открытие файла
+    mov ah, 3Dh           ; Функция DOS 3Dh - открытие существующего файла
     mov al, 00h           ; Режим чтения
     mov dx, offset path   ; Указываем путь к файлу
     int 21h               
